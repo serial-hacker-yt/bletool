@@ -34,5 +34,5 @@ This tool provides an interactive CLI for:
 ## Clone the repository
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git
-cd YOUR_REPO
+git clone https://github.com/serial-hacker-yt/bletool.git
+cd bletool
