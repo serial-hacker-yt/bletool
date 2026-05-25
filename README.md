@@ -36,3 +36,10 @@ This tool provides an interactive CLI for:
 ```bash
 git clone https://github.com/serial-hacker-yt/bletool.git
 cd bletool
+```
+
+## Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
