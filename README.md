@@ -27,6 +27,12 @@ This tool provides an interactive CLI for:
 - Tab completion
 - Colored interactive prompt
 
+## Disclaimer
+
+This tool is intended for authorized BLE security research, testing, and educational purposes only.
+
+Only use this tool against devices you own or have explicit permission to test.
+
 ---
 
 # Installation
