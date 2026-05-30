@@ -120,7 +120,7 @@ Handle: 43 -> UUID: 0000ff02-0000-1000-8000-00805f9b34fb | Properties: ['read', 
 
 Select a characteristic for future commands:
 ```bash
-select 43
+select <handle>
 ```
 or:
 ```bash
@@ -143,18 +143,18 @@ read-char 0000ff02-0000-1000-8000-00805f9b34fb
 ```
 If a characteristic is already selected:
 ```bash
-select 43
+select <handle>
 read-char
 ```
 ## Writing Characteristics
 
 Write With Response
 ```bash
-char-write-req 41 0100
+char-write-req <handle> <hex data>
 ```
 Write Without Response
 ```bash
-char-write-cmd 41 0100
+char-write-cmd <handle> <hex data>
 ```
 
 Write To Selected Characteristic
@@ -177,11 +177,11 @@ Notifications
 
 ## Start notifications on a characteristic:
 ```bash
-notify 43 start
+notify <handle> start
 ```
 Stop notifications:
 ```bash
-notify 43 stop
+notify <handle> stop
 ```
 Notification data will automatically appear in the CLI:
 
@@ -194,7 +194,7 @@ The keep-alive feature continuously writes a value to a characteristic to mainta
 
 Start keep-alive:
 ```bash
-keep-alive start 41 <hex data>
+keep-alive <handle> <hex data> start
 ```
 Stop keep-alive:
 ```bash
