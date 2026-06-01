@@ -279,11 +279,11 @@ async def read_characteristics(session, parts):
 
         if session.char:
 
+            uuid = uuidMap(session, parts)
+
             value = await session.client.read_gatt_char(
                 uuid
             )
-
-            print(session.char)
 
         else:
 
