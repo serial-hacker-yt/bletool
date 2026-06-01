@@ -568,12 +568,15 @@ async def dump_info(session, parts):
 
 async def keepAlive(session, parts):
 
-    if parts[1] not in ['stop', 'status'] and len(parts) < 4:
-
+    if (
+        len(parts) < 2 or
+        (len(parts) < 4 and parts[1] not in ["stop", "status"])
+    ):
         print(
-            "Usage: keep-alive <handle> <value> <start> \nkeep-alive <status/stop>"
+            "Usage:\n" 
+            "keep-alive <handle> <value> <start>\n"
+            "keep-alive <status/stop>"
         )
-
         return
 
 
