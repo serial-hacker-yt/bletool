@@ -143,6 +143,7 @@ async def connect_device(session, mac):
 
         client = BleakClient(mac,  disconnected_callback=lambda cli: handle_disconnect(session))
 
+
         await client.connect()
 
         for service in client.services:
@@ -175,9 +176,10 @@ async def disconnect_device(session):
 
     if session.client and session.connected:
 
+        print("[-] Disconnecting...")
+
         await session.client.disconnect()
 
-        print("[-] Disconnected")
 
         session.client = None
         session.connected = False
@@ -446,19 +448,23 @@ def notify_callback(sender, data, session):
 
 async def connect_command(session, parts):
 
-    if not session.mac:
-
-        if len(parts) < 2:
-            print("Usage: connect <mac>")
-            return
-
-        mac = parts[1]
-
-        await connect_device(session, mac)
-
+    if session.connected:
+        print("Device already connected")
     else:
 
-        await connect_device(session, session.mac)
+        if not session.mac:
+
+            if len(parts) < 2:
+                print("Usage: connect <mac>")
+                return
+
+            mac = parts[1]
+
+            await connect_device(session, mac)
+
+        else:
+
+            await connect_device(session, session.mac)
 
 
 async def scan_command(session, parts):
@@ -478,7 +484,7 @@ async def services_command(session, parts):
 
 async def write_req(session, parts):
 
-    if len(parts) < 2:
+    if len(parts) <= 2 and not session.char:
 
         print("Usage: char-write-req <hnd/uuid> <data>")
 
@@ -489,7 +495,7 @@ async def write_req(session, parts):
 
 async def write(session, parts):
 
-    if len(parts) < 2:
+    if len(parts) <= 2 and not session.char:
 
         print("Usage: char-write-cmd <hnd/uuid> <data>")
 
@@ -624,27 +630,36 @@ async def notify(session, parts):
 
     elif parts[2] == "start":
 
-        uuid = uuidMap(session, parts)
+        if session.notification_status.get(parts[1]) == "Running":
+            print("Notifications already running")
+            return
 
-        await session.client.start_notify(
-            uuid,
-            lambda sender, data: 
-                notify_callback(sender, data, session)
-        )
+        else:
+            uuid = uuidMap(session, parts)
 
-        print(f"Notifications started for {uuid}")
+            await session.client.start_notify(
+                uuid,
+                lambda sender, data: 
+                    notify_callback(sender, data, session)
+            )
 
-        session.notification_status[parts[1]] = "Running"
+            print(f"Notifications started for {uuid}")
+
+            session.notification_status[parts[1]] = "Running"
 
     elif parts[2] == "stop":
 
         uuid = uuidMap(session, parts)
 
-        await session.client.stop_notify(uuid)
+        if session.notification_status.get(parts[1], "Stopped") == "Stopped":
+            print(f"Notifications are off for handle {parts[1]}")
+        else:
 
-        print(f"Notifications stopped for {uuid}")
+            await session.client.stop_notify(uuid)
 
-        session.notification_status[parts[1]] = "Stopped"
+            print(f"Notifications stopped for {uuid}")
+
+            session.notification_status[parts[1]] = "Stopped"
 
     else:
         print("Unknown Command")
