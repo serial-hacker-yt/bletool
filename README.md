@@ -35,7 +35,6 @@ bletool provides an interactive CLI for:
 - Session status and device information reporting
 - Tab completion
 - Colored interactive prompt
-- Automated test suite
 
 ---
 
