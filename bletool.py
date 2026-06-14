@@ -15,6 +15,13 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.patch_stdout import patch_stdout
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.completion import Completer, Completion
+from prompt_toolkit import print_formatted_text
+
+
+from datetime import datetime
+
+dt = datetime.now()
+timestamp = dt.timestamp()
 
 
 parser = argparse.ArgumentParser(
@@ -61,7 +68,15 @@ class Session:
         self.last_write = None
         self.keepAliveTask = None
         self.notifications = []
+        self.previous_notification = None
         self.notification_status = {}
+        self.notify_settings = {
+                                "timestamps": False,
+                                "counters": False,
+                                "diffs": False,
+                                "colors": False,
+                                }
+        self.notificationCounter = 0
 
 class CommandCompleter(Completer):
 
@@ -87,14 +102,21 @@ def uuidMap(session, parts):
 
                 addresses[hnd.handle] = hnd.uuid
 
+        if isinstance(parts, str):
+            parts = [parts]
+
         if session.char and session.char.isdigit():
             uuid = addresses.get(int(session.char))
 
         elif session.char and not session.char.isdigit():
             uuid = session.char
 
+        elif not session.char and parts[0].isdigit():
+            uuid = addresses.get(int(parts[0]))
+
         elif not session.char and parts[1].isdigit():
             uuid = addresses.get(int(parts[1]))
+
 
 
         else:
@@ -105,6 +127,82 @@ def uuidMap(session, parts):
     except Exception as e:
         print(f"Error: {e}")
 
+def format_notification(session):
+
+    notification = session.notifications.pop(0)
+
+    parts = []
+
+    if session.notify_settings["timestamps"]:
+        parts.append(
+            f"[{notification['timestamp']}]"
+        )
+
+    if session.notify_settings["counters"]:
+        parts.append(
+            f"[{notification['counter']}]"
+        )
+
+    data = notification["data"].hex()
+    sender = notification['sender']
+
+    if session.notify_settings["colors"]:
+
+        color = (
+            "ansicyan"
+            if notification["counter"] % 2 == 0
+            else "ansiwhite"
+        )
+
+        sender = (
+            f"<{color}>{notification['sender']}</{color}>"
+        )
+
+
+    if session.notify_settings["diffs"]:
+
+        if session.previous_notification is not None:
+
+            previous = session.previous_notification
+            current = notification["data"]
+
+
+            diff_output = []
+
+            for old, new in zip(previous, current):
+
+                if old != new:
+                    diff_output.append(
+                        f"<ansired>{new:02x}</ansired>"
+                    )
+                else:
+                    diff_output.append(
+                        f"{new:02x}"
+                    )
+
+            data_str = "".join(diff_output)
+
+            session.previous_notification = notification["data"]
+
+            parts.append(
+                f"{sender}: {data_str}"
+            )
+
+
+        else:
+            parts.append(
+                f"{sender}: {data}"
+            )
+
+            session.previous_notification = notification["data"]
+
+    else:
+
+        parts.append(
+            f"{sender}: {data}"
+        )
+
+    return HTML(" ".join(parts))
 
 ## BLE Command functions
 
@@ -439,9 +537,17 @@ async def keep_alive_loop(session, parts):
 
 def notify_callback(sender, data, session):
 
-    session.notifications.append(
-        f"[NOTIFY] {sender}: {data.hex()}"
-    )
+    timestamp = datetime.now().strftime(
+        "%H:%M:%S.%f"
+    )[:-3]
+    session.notificationCounter += 1
+
+    session.notifications.append({
+        "counter": session.notificationCounter,
+        "timestamp": timestamp,
+        "sender": sender,
+        "data": data
+    })
 
 
 ## Commands
@@ -625,10 +731,44 @@ async def keepAlive(session, parts):
 
 async def notify(session, parts):
 
+
+    if len(parts) < 2:
+        print("Usage: notify <stop/status>"
+              "Usage: notify <handle/uuid> <start/stop>")
+        return
+        
+    if parts[1] == "status":
+        print(f'Notification status: {session.notification_status}')
+        return
+    
+    if parts[1] == "stop":
+
+        handles = list(session.notification_status.keys())
+
+        for handle in handles:
+
+            uuid = uuidMap(session, handle)
+
+            if session.notification_status[handle] != "Stopped":
+
+                session.notification_status[handle] = "Stopped"
+
+                await session.client.stop_notify(uuid)
+            
+
+        print("All notifications stopped")
+
+        return
+
+
     if len(parts) < 3:
-        print("Usage: notify <handle/uuid> <start/stop>")
+        print("Usage: notify <stop/status>"
+              "Usage: notify <handle/uuid> <start/stop>")
+        return
 
     elif parts[2] == "start":
+
+        session.notificationCounter = 0 
 
         if session.notification_status.get(parts[1]) == "Running":
             print("Notifications already running")
@@ -669,10 +809,54 @@ async def notification_loop(session):
     while True:
 
         while session.notifications:
-            print(session.notifications.pop(0))
+            try:
+                print_formatted_text(
+                    format_notification(session)
+                )
+            except Exception as e:
+                print(f"Notification formatting error: {e}")
 
         await asyncio.sleep(0.05)
 
+async def notify_display_settings(session, parts):
+
+
+    if len(parts) < 2:
+        print(
+            "Usage:\n"
+            "notify-display status\n"
+            "notify-display <setting> on/off"
+        )
+        return
+
+    if parts[1] == "status":
+        print(session.notify_settings)
+        return
+
+    if len(parts) < 3:
+        print(
+            "Usage:\n"
+            "notify-display status\n"
+            "notify-display <setting> on/off"
+        )
+        return
+    
+    setting = parts[1]
+    value = parts[2]
+
+    if setting not in session.notify_settings:
+        print(f"Unknown setting: {setting}")
+        return
+
+    if value not in ["on", "off"]:
+        print("Value must be on or off")
+        return
+
+    session.notify_settings[setting] = (value == "on")
+
+    print(f"{setting} {value}")
+
+  
 
 
 
@@ -680,9 +864,11 @@ async def help_command(session, parts):
 
     print("""
 
-Available commands:
--------------------
+BLETool Commands
+================
 
+Connection
+----------
 connect <mac>
     Connect to BLE device
 
@@ -692,18 +878,33 @@ disconnect
 scan
     Scan for nearby BLE devices
 
+
+GATT Enumeration
+----------------
 characteristics
     List UUIDs, handles, and properties
 
 handles
     Show handle -> UUID mapping
 
+info
+    Show current session information
+
+dump <filename>
+    Dump BLE device information to JSON
+
+
+Characteristic Selection
+------------------------
 select <handle|uuid>
     Select characteristic
 
 deselect
     Clear selected characteristic
 
+
+Characteristic Operations
+-------------------------
 read-char <handle|uuid>
     Read characteristic
 
@@ -722,21 +923,54 @@ char-write-cmd <hex>
 replay
     Replay last write command
 
-dump <filename>
-    Dump BLE device information to JSON
 
+Notifications
+-------------
+notify <handle> start
+    Start notifications
+
+notify <handle> stop
+    Stop notifications
+
+notify stop
+    Stop all notifications
+
+notify status
+    Show active notification subscriptions
+
+
+Notification Display
+--------------------
+notify-display timestamps on/off
+    Toggle notification timestamps
+
+notify-display counters on/off
+    Toggle notification counters
+
+notify-display colors on/off
+    Alternate notification row colors
+
+notify-display diffs on/off
+    Highlight changed bytes
+
+notify-display status
+    Show current display settings
+
+
+Keep Alive
+----------
 keep-alive <handle> <value> start
+    Start keep-alive task
+
 keep-alive stop
-keep-alive status 
-    Keep connection active
-          
-notify <handle> <start>
-notify <handle> <stop>
-    Get data being sent from the device
+    Stop keep-alive task
 
-info
-    Show current session info
+keep-alive status
+    Show keep-alive status
 
+
+Miscellaneous
+-------------
 clear
     Clear screen
 
@@ -781,7 +1015,8 @@ commands = {
     "handles": handle,
     "dump": dump_info,
     "keep-alive": keepAlive,
-    "notify": notify
+    "notify": notify,
+    "notify-display": notify_display_settings
 
 }
 
@@ -810,7 +1045,7 @@ def completer(text, state):
 ## Interactive mode
 
 async def interactive():
-    print("bletool v1.0 - BLE Research Utility")
+    print("bletool v1.1 - BLE Research Utility")
     session = Session()
     session.loop = asyncio.get_running_loop()
 
@@ -850,7 +1085,7 @@ async def interactive():
 
                 break
             
-            elif not session.connected and cmd not in ["connect", "scan", "help", "exit", "quit"]:
+            elif not session.connected and cmd not in ["connect", "scan", "help", "exit", "quit", "notify-display"]:
                 print("No device connected")
                 continue
 
@@ -890,3 +1125,4 @@ try:
     asyncio.run(main())
 except KeyboardInterrupt:
     print("Exiting...")
+
