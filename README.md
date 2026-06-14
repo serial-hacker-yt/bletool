@@ -1,31 +1,43 @@
 # bletool
+
 A Python-based BLE (Bluetooth Low Energy) research and interaction tool designed for security researchers, reverse engineers, and developers working with BLE devices.
 
-This tool provides an interactive CLI for:
+bletool provides an interactive CLI for:
+
 - BLE device discovery
 - GATT enumeration
 - Characteristic read/write operations
-- Notification monitoring
+- Notification monitoring and analysis
 - Replay testing
 - Keep-alive functionality
 - BLE device information dumping
 
 ---
 
-# Features
+## Features
 
 - Interactive BLE CLI
-- BLE scanning
+- BLE device scanning
 - Connect/disconnect support
-- Read/write GATT characteristics
-- Replay previously sent commands
-- Notification monitoring
-- Keep-alive task support
-- GATT/service dumping to JSON
-- Handle ↔ UUID mapping
+- GATT service and characteristic enumeration
+- Read characteristics by handle, UUID, or selected characteristic
+- Write characteristics with and without response
 - Characteristic selection shortcuts
+- Notification monitoring and management
+- Notification display customization
+- Notification packet counters
+- Notification timestamp support
+- Notification diff highlighting for protocol analysis
+- Replay previously sent write operations
+- Keep-alive task support
+- GATT and advertisement data dumping to JSON
+- Handle ↔ UUID mapping
+- Session status and device information reporting
 - Tab completion
 - Colored interactive prompt
+- Automated test suite
+
+---
 
 ## Disclaimer
 
@@ -35,36 +47,42 @@ Only use this tool against devices you own or have explicit permission to test.
 
 ---
 
-# Installation
+## Installation
 
-## Clone the repository
+### Clone the Repository
 
 ```bash
 git clone https://github.com/serial-hacker-yt/bletool.git
 cd bletool
 ```
 
-## Install dependencies
+### Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
-# Usage
 
-## Start Interactive Mode
+---
+
+## Usage
+
+### Start Interactive Mode
 
 Launch the interactive BLE CLI:
 
 ```bash
 python3 bletool.py -I
 ```
-You can optionally pre-load a target MAC address:
+
+Optionally preload a target MAC address:
 
 ```bash
 python3 bletool.py -I -b AA:BB:CC:DD:EE:FF
 ```
 
-## Scanning
+---
+
+### Scanning
 
 Scan for nearby BLE devices:
 
@@ -72,7 +90,7 @@ Scan for nearby BLE devices:
 python3 bletool.py -S
 ```
 
-Or in interactive mode:
+Or from interactive mode:
 
 ```bash
 scan
@@ -80,10 +98,13 @@ scan
 
 Example output:
 
+```text
 Device: DeviceName | Address: AA:BB:CC:DD:EE:FF
+```
 
+---
 
-## Connecting
+### Connecting
 
 Connect to a BLE device:
 
@@ -91,164 +112,404 @@ Connect to a BLE device:
 connect AA:BB:CC:DD:EE:FF
 ```
 
-Or if you preloaded the MAC:
+If a MAC address was preloaded:
 
 ```bash
 connect
 ```
 
-## Disconnect from the current device:
+Disconnect from the current device:
+
 ```bash
 disconnect
 ```
 
-## Enumerating Services and Characteristics
+---
 
-### List all discovered characteristics:
+### Enumerating Services and Characteristics
+
+List all discovered characteristics:
+
 ```bash
 characteristics
 ```
-### Show handle → UUID mappings:
+
+Show handle-to-UUID mappings:
+
 ```bash
 handles
 ```
+
 Example:
 
+```text
 Handle: 43 -> UUID: 0000ff02-0000-1000-8000-00805f9b34fb | Properties: ['read', 'notify']
+```
+
+---
 
 ### Selecting Characteristics
 
-Select a characteristic for future commands:
+Once a characteristic is selected, commands such as `read-char`, `char-write-cmd`, and `char-write-req` can be executed without specifying the handle again.
+
+Select a characteristic by handle:
+
 ```bash
-select <handle>
+select 43
 ```
-or:
+
+Or by UUID:
+
 ```bash
 select 0000ff02-0000-1000-8000-00805f9b34fb
 ```
-### Deselect the current characteristic:
+
+Deselect the current characteristic:
+
 ```bash
 deselect
 ```
 
+Example workflow:
+
+```bash
+select 47
+read-char
+
+select 47
+char-write-cmd 0100
+```
+
+---
+
 ### Reading Characteristics
 
-Read a characteristic directly:
+Read by handle:
+
 ```bash
 read-char 43
 ```
-or using a UUID:
+
+Read by UUID:
+
 ```bash
 read-char 0000ff02-0000-1000-8000-00805f9b34fb
 ```
-If a characteristic is already selected:
+
+Read the currently selected characteristic:
+
 ```bash
-select <handle>
+select 43
 read-char
 ```
-## Writing Characteristics
 
-Write With Response
+---
+
+### Writing Characteristics
+
+#### Write With Response
+
 ```bash
-char-write-req <handle> <hex data>
-```
-Write Without Response
-```bash
-char-write-cmd <handle> <hex data>
+char-write-req <handle> <hex-data>
 ```
 
-Write To Selected Characteristic
+Example:
+
 ```bash
-select 41
+char-write-req 43 0100
+```
+
+#### Write Without Response
+
+```bash
+char-write-cmd <handle> <hex-data>
+```
+
+Example:
+
+```bash
+char-write-cmd 43 0100
+```
+
+#### Write to Selected Characteristic
+
+```bash
+select 43
 char-write-cmd 0100
 ```
-### Replay Attacks
+
+---
+
+### Replay Testing
 
 Replay the last write operation:
+
 ```bash
 replay
 ```
+
 Useful for:
 
-protocol testing
-replay validation
-reverse engineering workflows
-Notifications
+- Protocol testing
+- Replay validation
+- Reverse engineering workflows
+- Device state analysis
 
-## Start notifications on a characteristic:
+---
+
+### Notifications
+
+Start notifications:
+
 ```bash
 notify <handle> start
 ```
+
+Example:
+
+```bash
+notify 43 start
+```
+
 Stop notifications:
+
 ```bash
 notify <handle> stop
 ```
-Notification data will automatically appear in the CLI:
 
+Example:
+
+```bash
+notify 43 stop
+```
+
+Stop all active notifications:
+
+```bash
+notify stop
+```
+
+View notification status:
+
+```bash
+notify status
+```
+
+Example status output:
+
+```text
+Handle 43: Running
+Handle 49: Stopped
+```
+
+Example notification output:
+
+```text
 [NOTIFY] 43: 01020304
+```
 
-## Keep Alive
+---
 
-Some BLE devices disconnect if no traffic is sent.
-The keep-alive feature continuously writes a value to a characteristic to maintain the connection.
+### Notification Display Settings
+
+Control how incoming notification data is displayed.
+
+Show current settings:
+
+```bash
+notify-display status
+```
+
+Enable timestamps:
+
+```bash
+notify-display timestamps on
+```
+
+Disable timestamps:
+
+```bash
+notify-display timestamps off
+```
+
+Enable packet counters:
+
+```bash
+notify-display counters on
+```
+
+Disable packet counters:
+
+```bash
+notify-display counters off
+```
+
+Enable alternating row colors:
+
+```bash
+notify-display colors on
+```
+
+Disable alternating row colors:
+
+```bash
+notify-display colors off
+```
+
+Enable byte-level diff highlighting:
+
+```bash
+notify-display diffs on
+```
+
+Disable diff highlighting:
+
+```bash
+notify-display diffs off
+```
+
+Example status output:
+
+```text
+{
+    'timestamps': False,
+    'counters': False,
+    'diffs': False,
+    'colors': False
+}
+```
+
+Example notification output with timestamps and counters enabled:
+
+```text
+[19:55:37.191] [22] 70d51002-2c7f-4e75-ae8a-d758951ce4e0 (Handle: 49): 1eff0209073000420c0c182000be00000001f0000000ffff0002f00000003db80602f0000080ffff0008f0000080ffff0008f0000000
+```
+
+When diff highlighting is enabled, changed bytes between consecutive notifications are visually highlighted, making it easier to identify protocol fields that change in response to device activity.
+
+---
+
+### Keep Alive
+
+Some BLE devices disconnect when idle. The keep-alive feature periodically writes data to a characteristic to maintain the connection.
 
 Start keep-alive:
+
 ```bash
-keep-alive <handle> <hex data> start
+keep-alive <handle> <hex-data> start
 ```
+
+Example:
+
+```bash
+keep-alive 43 0100 start
+```
+
 Stop keep-alive:
+
 ```bash
 keep-alive stop
 ```
-Check status:
+
+Check keep-alive status:
+
 ```bash
 keep-alive status
 ```
-Device Information Dumping
 
-## Dump advertisement and GATT information to JSON:
+
+
+---
+
+### Device Information Dumping
+
+Dump advertisement and GATT information to JSON:
+
 ```bash
 dump mydevice
 ```
-This creates:
 
+Creates:
+
+```text
 mydevice.json
+```
 
 The dump includes:
 
-advertisement data
-RSSI
-manufacturer data
-services
-characteristics
-descriptors
-Session Information
+- Advertisement data
+- RSSI
+- Manufacturer data
+- Services
+- Characteristics
+- Descriptors
 
-## Display current session state:
+---
+
+### Session Information
+
+Display current session information:
+
 ```bash
 info
 ```
-Example:
 
+Example output:
+
+```text
 MAC: AA:BB:CC:DD:EE:FF
 Connected: True
-Selected Char: 41
-Last write: {'uuid': '0000ff01...', 'data': b'\x01\x00'}
+Selected Char: 43
+Last Write:
+{
+    'uuid': '0000ff01-0000-1000-8000-00805f9b34fb',
+    'data': b'\x01\x00'
+}
+```
 
-## Help
+---
+
+### Help
 
 Display command help:
+
 ```bash
 help
 ```
 
-## Exit
+---
+
+### Exit
 
 Exit the interactive session:
+
 ```bash
 exit
 ```
-or:
+
+or
+
 ```bash
 quit
 ```
+
+---
+
+## Intended Use
+
+bletool is intended for:
+
+- BLE security research
+- Reverse engineering
+- Protocol analysis
+- Device interoperability testing
+- Educational use
+- Authorized security assessments
+
+Always obtain permission before testing devices you do not own.
+
+---
+
+## License
+
+This project is licensed under the MIT License.
