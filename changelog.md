@@ -11,6 +11,9 @@
 
 ## v1.1
 - Added notification display settings
+  - timestamps
+  - diffs
+  - counters
 
 ## v1.0
 - Initial release
