@@ -1,0 +1,11 @@
+# Connect to device 
+connect <target mac>
+
+# Enumerate GATT
+characteristics
+handles
+
+# Dump information
+dump device_dump
+
+disconnect
