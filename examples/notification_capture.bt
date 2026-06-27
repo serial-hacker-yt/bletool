@@ -1,0 +1,13 @@
+# Connect to device
+connect <target mac>
+
+# Start notifications
+notify 49 start
+
+# Capture for 10 seconds
+sleep 10
+
+# Stop notifications
+notify 49 stop
+
+disconnect
