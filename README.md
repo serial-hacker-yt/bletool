@@ -1,41 +1,48 @@
 # bletool
 
-A Python-based BLE (Bluetooth Low Energy) research and interaction tool designed for security researchers, reverse engineers, and developers working with BLE devices.
+A Python-based Bluetooth Low Energy (BLE) research, scripting, and interaction tool designed for security researchers, reverse engineers, and developers working with BLE devices.
 
-bletool provides an interactive CLI for:
+bletool provides both an interactive CLI and a scripting engine for:
 
 - BLE device discovery
 - GATT enumeration
 - Characteristic read/write operations
 - Notification monitoring and analysis
-- Replay testing
+- Protocol replay testing
+- Automated BLE workflows
 - Keep-alive functionality
 - BLE device information dumping
-
 ---
 
-## Features
+### Features
 
 - Interactive BLE CLI
+- BLE scripting engine
+- Script output logging
+- Verbose script execution
 - BLE device scanning
 - Connect/disconnect support
 - GATT service and characteristic enumeration
-- Read characteristics by handle, UUID, or selected characteristic
+- Read characteristics by:
+  - Handle
+  - Hex handle
+  - Estimated characteristic value handle
+  - UUID
+  - Selected characteristic
 - Write characteristics with and without response
 - Characteristic selection shortcuts
+- Handle ↔ UUID abstraction
 - Notification monitoring and management
 - Notification display customization
-- Notification packet counters
 - Notification timestamp support
 - Notification diff highlighting for protocol analysis
 - Replay previously sent write operations
 - Keep-alive task support
 - GATT and advertisement data dumping to JSON
-- Handle ↔ UUID mapping
 - Session status and device information reporting
 - Tab completion
 - Colored interactive prompt
-
+- Automated integration testing with pytest
 ---
 
 ## Disclaimer
@@ -80,6 +87,56 @@ python3 bletool.py -I -b AA:BB:CC:DD:EE:FF
 ```
 
 ---
+
+
+### Script Mode
+
+bletool supports executing BLE workflows from scripts.
+
+Execute a script:
+
+```bash
+python3 bletool.py -sc myscript
+```
+
+Enable verbose execution:
+
+```bash
+python3 bletool.py -sc myscript -v
+```
+
+Save output to a file:
+
+```bash
+python3 bletool.py -sc myscript -o output.log
+```
+
+Example script:
+
+```text
+connect 48:27:E2:08:B4:CE
+notify 49 start
+sleep 10
+notify 49 stop
+disconnect
+```
+
+Example verbose output:
+
+```text
+[1] connect 48:27:E2:08:B4:CE
+Attempting to connect...
+[+] Connected!
+
+[2] notify 49 start
+Notifications started for 70d51002-2c7f-4e75-ae8a-d758951ce4e0
+
+70d51002-2c7f-4e75-ae8a-d758951ce4e0 (Handle: 49):
+1eff020907304c420c031ae800...
+
+[4] notify 49 stop
+Notifications stopped
+```
 
 ### Scanning
 
@@ -142,8 +199,23 @@ handles
 Example:
 
 ```text
-Handle: 43 -> UUID: 0000ff02-0000-1000-8000-00805f9b34fb | Properties: ['read', 'notify']
+Handle: 43 (0x002B) | Estimated Char value handle: 44 (0x002C) -> UUID: 0000ff02-0000-1000-8000-00805f9b34fb | Properties: ['read', 'notify']
 ```
+
+Hex Handle Support
+
+bletool supports decimal handles, hexadecimal handles, and estimated characteristic value handles.
+
+Examples:
+
+```bash
+read-char 47
+read-char 0x2F
+read-char 48
+read-char 0x30
+```
+
+All handle formats are automatically normalized to the correct BLE characteristic UUID.
 
 ---
 
@@ -499,9 +571,11 @@ quit
 bletool is intended for:
 
 - BLE security research
-- Reverse engineering
+- BLE reverse engineering
 - Protocol analysis
 - Device interoperability testing
+- BLE automation and scripting
+- Device fuzzing and experimentation
 - Educational use
 - Authorized security assessments
 
