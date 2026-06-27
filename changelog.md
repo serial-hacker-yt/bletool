@@ -1,0 +1,16 @@
+# Changelog
+
+## v1.2
+- Added scripting engine
+- Added verbose script execution
+- Added output logging
+- Added hex handle support
+- Added estimated characteristic handle support
+- Added automated integration tests
+- Improved notification handling
+
+## v1.1
+- Added notification display settings
+
+## v1.0
+- Initial release
