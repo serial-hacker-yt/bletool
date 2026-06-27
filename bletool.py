@@ -1,12 +1,9 @@
-## Tool with the goal of aiding researchers
-## with BLE replay attacks
-
-
 import argparse
 import asyncio
 
 
 import os
+import sys
 import json
 
 from bleak import BleakClient
@@ -25,7 +22,7 @@ timestamp = dt.timestamp()
 
 
 parser = argparse.ArgumentParser(
-    description="BLE replay and interaction tool"
+    description="Bluetooth Low Energy (BLE) research utility for device interaction, scripting, protocol analysis, and security testing"
 )
 
 parser.add_argument(
@@ -35,7 +32,7 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "-v",
+    "-n",
     "--value",
     help="Hex value of write request/command"
 )
@@ -52,6 +49,25 @@ parser.add_argument(
     "--interactive",
     action="store_true",
     help="Interactive mode"
+)
+
+parser.add_argument(
+    "-sc",
+    "--script",
+    help="Select a script file to run"
+)
+
+parser.add_argument(
+    "-o",
+    "--output",
+    help="Ouput script results into a file"
+)
+
+parser.add_argument(
+    "-v",
+    "--verbose",
+    action="store_true",
+    help="Verbose logging for scripts"
 )
 
 args = parser.parse_args()
@@ -77,6 +93,7 @@ class Session:
                                 "colors": False,
                                 }
         self.notificationCounter = 0
+        self.scriptMode = False
 
 class CommandCompleter(Completer):
 
@@ -88,44 +105,70 @@ class CommandCompleter(Completer):
             if cmd.startswith(text):
                 yield Completion(cmd, start_position=-len(text))
 
+class Tee:
+    def __init__(self, *streams):
+        self.streams = streams
+
+    def write(self, data):
+        for stream in self.streams:
+            stream.write(data)
+
+    def flush(self):
+        for stream in self.streams:
+            stream.flush()
+
+    def isatty(self):
+        return self.streams[0].isatty()
+    
+    def fileno(self):
+        return self.streams[0].fileno()
+
+    @property
+    def encoding(self):
+        return self.streams[0].encoding
+
 
 ## Helper Functions
 
-def uuidMap(session, parts):
-        
+def parseHandle(value):
     try:
+        return int(value, 0)
+    except (ValueError, TypeError):
+        try:
+            return int(value, 16)
+        except (ValueError, TypeError):
+            return None
 
+
+def uuidMap(session, parts):
+    try:
         addresses = {}
 
         for service in session.client.services:
             for hnd in service.characteristics:
-
                 addresses[hnd.handle] = hnd.uuid
+                addresses[hnd.handle + 1] = hnd.uuid
 
         if isinstance(parts, str):
             parts = [parts]
 
-        if session.char and session.char.isdigit():
-            uuid = addresses.get(int(session.char))
-
-        elif session.char and not session.char.isdigit():
-            uuid = session.char
-
-        elif not session.char and parts[0].isdigit():
-            uuid = addresses.get(int(parts[0]))
-
-        elif not session.char and parts[1].isdigit():
-            uuid = addresses.get(int(parts[1]))
-
-
-
+        if len(parts) > 1:
+            value = parts[1]
+        elif session.char:
+            value = session.char
         else:
-            uuid = parts[1]
+            value = parts[0]
 
-        return uuid
-    
+        handle = parseHandle(value)
+
+        if handle is not None:
+            return addresses.get(handle)
+
+        return value
+
     except Exception as e:
         print(f"Error: {e}")
+        return None
 
 def format_notification(session):
 
@@ -408,8 +451,10 @@ async def device_handles(session):
             for service in session.client.services:
                 for char in service.characteristics:
 
+                    value_handle = char.handle + 1
+
                     print(
-                        f"Handle: {char.handle} -> "
+                        f"Handle: {char.handle} (0x{char.handle:04X}) | Estimated Char value handle: {value_handle} (0x{value_handle:04X}) -> "
                         f"UUID: {char.uuid} | "
                         f"Properties: {char.properties}"
                     )
@@ -857,7 +902,52 @@ async def notify_display_settings(session, parts):
     print(f"{setting} {value}")
 
   
+async def scriptEngine(session, file):
+    
+    lineNum = 0
 
+    with open(file, "r") as script:
+        for line in script:
+
+
+            lineNum += 1
+
+
+            line = line.strip()
+
+            if not line or line.startswith("#"):
+                continue
+
+            command = line.split() 
+            try:
+
+                if not line.strip():
+                    continue
+
+                elif command[0] in commands:
+
+                    if args.verbose:
+                        print(f'[{lineNum}]> {line}')
+                    
+                    await commands[command[0]](session, command)
+
+
+                elif line[0] == "#":
+                    continue
+
+                elif command[0] == "sleep":
+                    
+                    await asyncio.sleep(int(command[1]))
+                    
+                else:
+                    print(f"Error on line {lineNum}")
+                    break
+
+            except Exception as e:
+                print(f"{e} on {lineNum}")
+
+    if session.connected:
+        await disconnect_command(session, [])
 
 
 async def help_command(session, parts):
@@ -886,6 +976,8 @@ characteristics
 
 handles
     Show handle -> UUID mapping
+    Handle: Characteristic declaration handle.
+    Char Value Handle: The ATT handle typically used for reads, writes, and notifications, shown in both decimal and hexadecimal.
 
 info
     Show current session information
@@ -1045,7 +1137,7 @@ def completer(text, state):
 ## Interactive mode
 
 async def interactive():
-    print("bletool v1.1 - BLE Research Utility")
+    print("bletool v1.2 - BLE Research Utility")
     session = Session()
     session.loop = asyncio.get_running_loop()
 
@@ -1117,6 +1209,50 @@ async def main():
 
         await connect_device(session, args.mac)
 
+    elif args.script:
+
+        path = args.script
+        session = Session()
+
+        session.scriptMode = True
+        notif_task = asyncio.create_task(notification_loop(session))
+
+
+
+        if os.path.isfile(path):
+
+            print(f"Running script: {path}")
+
+            if args.output:
+
+                logfile = open(args.output, "w")
+
+                original_stdout = sys.stdout
+
+                sys.stdout = Tee(
+                    original_stdout,
+                    logfile
+                )
+
+                try:
+                    await scriptEngine(session, path)
+
+                finally:
+                    notif_task.cancel()
+
+
+
+                    try:
+                        await notif_task
+                    except asyncio.CancelledError:
+                        pass
+
+                    sys.stdout = original_stdout
+                    logfile.close()
+
+            else:
+                await scriptEngine(session, path)
+
     else:
 
         print("Use -h for help")
@@ -1125,4 +1261,3 @@ try:
     asyncio.run(main())
 except KeyboardInterrupt:
     print("Exiting...")
-
