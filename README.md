@@ -91,24 +91,33 @@ python3 bletool.py -I -b AA:BB:CC:DD:EE:FF
 
 ### Script Mode
 
+#### Example Scripts
+
+The `examples/` directory contains several example workflows:
+
+| Script | Description |
+|---------|-------------|
+| enumerate.bts | Device enumeration and dumping |
+| notification_capture.bts | Capture BLE notifications |
+
 bletool supports executing BLE workflows from scripts.
 
 Execute a script:
 
 ```bash
-python3 bletool.py -sc myscript
+python3 bletool.py -sc myscript.bts
 ```
 
 Enable verbose execution:
 
 ```bash
-python3 bletool.py -sc myscript -v
+python3 bletool.py -sc myscript.bts -v
 ```
 
 Save output to a file:
 
 ```bash
-python3 bletool.py -sc myscript -o output.log
+python3 bletool.py -sc myscript.bts -o output.log
 ```
 
 Example script:
