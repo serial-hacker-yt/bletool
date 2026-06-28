@@ -152,10 +152,10 @@ def uuidMap(session, parts):
         if isinstance(parts, str):
             parts = [parts]
 
-        if len(parts) > 1:
-            value = parts[1]
-        elif session.char:
+        if session.char:
             value = session.char
+        elif len(parts) > 1:
+            value = parts[1]
         else:
             value = parts[0]
 
