@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.2.1
+- Fixed issue that returned an error when writing to a selected handle
+
 ## v1.2
 - Added scripting engine
 - Added verbose script execution
