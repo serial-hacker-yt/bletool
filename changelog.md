@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.3
+- Added packet capture analysis for Wireshark JSON exports
+- Added script generation for Wireshark JSON exports
+- Generated scripts preserve timing of captured packets
+- Grouped the help commands to make it more readable
+
+
 ## v1.2.1
 - Fixed issue that returned an error when writing to a selected handle
 
