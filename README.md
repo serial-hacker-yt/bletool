@@ -2,13 +2,25 @@
 
 A Python-based Bluetooth Low Energy (BLE) research, scripting, and interaction tool designed for security researchers, reverse engineers, and developers working with BLE devices.
 
-bletool provides both an interactive CLI and a scripting engine for:
+
+
+
+
+https://github.com/user-attachments/assets/5e4d853c-8ae9-4ee5-adc8-c30c0a79bf6d
+
+
+
+
+
+bletool provides an interactive CLI, a scripting engine, and protocol analysis tools for:
 
 - BLE device discovery
 - GATT enumeration
 - Characteristic read/write operations
 - Notification monitoring and analysis
 - Protocol replay testing
+- BLE ATT traffic analysis
+- Automatic script generation from Wireshark JSON exports
 - Automated BLE workflows
 - Keep-alive functionality
 - BLE device information dumping
@@ -17,6 +29,10 @@ bletool provides both an interactive CLI and a scripting engine for:
 ### Features
 
 - Interactive BLE CLI
+- BLE ATT operation analyzer
+- Automatic script generation from Wireshark JSON exports
+- Packet capture replay engine
+- Timing-aware BLE script generation
 - BLE scripting engine
 - Script output logging
 - Verbose script execution
@@ -70,17 +86,23 @@ pip install -r requirements.txt
 
 ---
 
-## Usage
+## Quick Start
 
-### Start Interactive Mode
+### 1. Scan for Nearby BLE Devices
 
-Launch the interactive BLE CLI:
+```bash
+python3 bletool.py -S
+```
+
+---
+
+### 2. Launch the Interactive CLI
 
 ```bash
 python3 bletool.py -I
 ```
 
-Optionally preload a target MAC address:
+Or preload a target device:
 
 ```bash
 python3 bletool.py -I -b AA:BB:CC:DD:EE:FF
@@ -88,6 +110,49 @@ python3 bletool.py -I -b AA:BB:CC:DD:EE:FF
 
 ---
 
+### 3. Analyze a Wireshark Capture
+
+```bash
+python3 bletool.py -a capture.json
+```
+
+---
+
+### 4. Generate a Replay Script
+
+```bash
+python3 bletool.py -sg capture.json
+```
+
+This automatically generates:
+
+```text
+capture.bts
+```
+
+---
+
+### 5. Replay the Capture
+
+```bash
+python3 bletool.py -sc capture.bts
+```
+
+Enable verbose output:
+
+```bash
+python3 bletool.py -sc capture.bts -v
+```
+
+Save replay output to a log file:
+
+```bash
+python3 bletool.py -sc capture.bts -o replay.log
+```
+
+---
+
+## Usage
 
 ### Script Mode
 
@@ -100,7 +165,7 @@ The `examples/` directory contains several example workflows:
 | enumerate.bts | Device enumeration and dumping |
 | notification_capture.bts | Capture BLE notifications |
 
-bletool supports executing BLE workflows from scripts.
+bletool scripts can be written manually or automatically generated from Wireshark JSON captures.
 
 Execute a script:
 
@@ -147,49 +212,188 @@ Notifications started for 70d51002-2c7f-4e75-ae8a-d758951ce4e0
 Notifications stopped
 ```
 
-### Scanning
+---
 
-Scan for nearby BLE devices:
+### Analyzer and Script Generator
+
+Analyze an nRF Sniffer capture converted to .json:
 
 ```bash
-python3 bletool.py -S
+python3 bletool.py -a capture.json
 ```
 
-Or from interactive mode:
+Generate a script based on a .json capture:
+
+Generated replay scripts preserve the timing between captured ATT operations, allowing realistic protocol replay during authorized testing.
 
 ```bash
-scan
+python3 bletool.py -sg capture.json
+```
+
+Execute a script with bletool:
+
+```bash
+python3 bletool.py -sc capture.bts
+```
+
+---
+
+## Replay Workflow
+
+bletool can analyze captured BLE traffic and automatically generate replayable scripts from Wireshark JSON exports.
+
+> **Current Support**
+>
+> Replay script generation currently supports Wireshark JSON exports generated from Nordic nRF Sniffer captures.
+
+### Step 1 — Capture BLE Traffic
+
+Capture BLE traffic using a Nordic nRF Sniffer and Wireshark.
+
+---
+
+### Step 2 — Export the Capture as JSON
+
+In Wireshark:
+
+```
+File
+→ Export Packet Dissections
+→ As JSON...
+```
+
+Save the capture as a JSON file.
+
+Example:
+
+```text
+capture.json
+```
+
+---
+
+### Step 3 — Analyze the Capture
+
+Analyze the captured BLE ATT operations:
+
+```bash
+python3 bletool.py -a capture.json
 ```
 
 Example output:
 
 ```text
-Device: DeviceName | Address: AA:BB:CC:DD:EE:FF
+Analyzing: capture.json
+
+WRITE HANDLES
+----------------------------------------
+Handle: 0x0004    0x12   Write Request      1 packets
+Handle: 0x002d    0x12   Write Request      2 packets
+Handle: 0x0033    0x12   Write Request      1 packets
+Handle: 0x0037    0x12   Write Request      1 packets
+Handle: 0x003d    0x12   Write Request      2 packets
+Handle: 0x0030    0x12   Write Request      27 packets
+
+READ HANDLES
+----------------------------------------
+Handle: 0x0045    0x0a   Read Request       1 packets
+Handle: 0x0047    0x0a   Read Request       1 packets
+
+NOTIFICATION HANDLES
+----------------------------------------
+Handle: 0x0032    0x1b   Notification       34 packets
+
+OTHER HANDLES
+----------------------------------------
+Handle: 0x0004    0x01   Unknown            1 packets
+Handle: 0x0004    0x13   Unknown            1 packets
+Handle: 0x0005    0x01   Unknown            1 packets
+Handle: 0x0048    0x01   Unknown            1 packets
+Handle: 0x002d    0x13   Unknown            1 packets
+Handle: 0x0033    0x13   Unknown            1 packets
+Handle: 0x0037    0x13   Unknown            1 packets
+Handle: 0x003d    0x13   Unknown            1 packets
+Handle: 0x0045    0x0b   Unknown            1 packets
+Handle: 0x0047    0x0b   Unknown            1 packets
+Handle: 0x0030    0x13   Unknown           20 packets
 ```
 
 ---
 
-### Connecting
+### Step 4 — Generate a Replay Script
 
-Connect to a BLE device:
+Generate a replayable bletool script from the capture:
 
 ```bash
-connect AA:BB:CC:DD:EE:FF
+python3 bletool.py -sg capture.json
 ```
 
-If a MAC address was preloaded:
+bletool automatically creates:
 
-```bash
-connect
+```text
+capture.bts
 ```
 
-Disconnect from the current device:
+The generated script preserves:
+
+- Target device address
+- Characteristic read operations
+- Characteristic write operations
+- Notification subscriptions
+- Timing between BLE operations
+
+---
+
+### Step 5 — Replay the Capture
+
+Execute the generated script:
 
 ```bash
-disconnect
+python3 bletool.py -sc capture.bts
+```
+
+Enable verbose output:
+
+```bash
+python3 bletool.py -sc capture.bts -v
+```
+
+Optionally save the replay output to a file:
+
+```bash
+python3 bletool.py -sc capture.bts -o replay.log
+```
+## Supported Capture Formats
+
+Current support includes:
+
+- Wireshark JSON exports generated from Nordic nRF Sniffer captures
+
+Planned support:
+
+- Android BTSnoop captures
+- Additional Wireshark export formats
+
+---
+
+## Interactive Mode
+
+Launch the interactive BLE CLI:
+
+```bash
+python3 bletool.py -I
+```
+
+Optionally preload a target MAC address:
+
+```bash
+python3 bletool.py -I -b AA:BB:CC:DD:EE:FF
 ```
 
 ---
+
+
+
 
 ### Enumerating Services and Characteristics
 
@@ -572,6 +776,18 @@ or
 ```bash
 quit
 ```
+
+---
+
+## Roadmap
+
+Upcoming features include:
+
+- Android btsnoop replay generation
+- Notification-aware scripting
+- Additional ATT opcode support
+- Improved protocol decoding
+- Enhanced replay controls
 
 ---
 
