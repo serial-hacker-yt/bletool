@@ -6,6 +6,7 @@ import os
 import sys
 import json
 
+from collections import Counter
 from bleak import BleakClient
 from bleak import BleakScanner
 from prompt_toolkit import PromptSession
@@ -20,54 +21,82 @@ from datetime import datetime
 dt = datetime.now()
 timestamp = dt.timestamp()
 
-
 parser = argparse.ArgumentParser(
-    description="Bluetooth Low Energy (BLE) research utility for device interaction, scripting, protocol analysis, and security testing"
+    description=(
+        "Bluetooth Low Energy (BLE) research utility for device interaction, "
+        "scripting, protocol analysis, and security testing"
+    )
 )
 
-parser.add_argument(
-    "-b",
-    "--mac",
-    help="MAC address of target"
-)
 
-parser.add_argument(
-    "-n",
-    "--value",
-    help="Hex value of write request/command"
-)
+# Connection Options
 
-parser.add_argument(
+connection = parser.add_argument_group("Connection")
+
+connection.add_argument(
     "-S",
     "--scan",
     action="store_true",
-    help="Scan for BLE devices"
+    help="Scan for nearby BLE devices"
 )
 
-parser.add_argument(
+connection.add_argument(
     "-I",
     "--interactive",
     action="store_true",
-    help="Interactive mode"
+    help="Start the interactive BLE shell"
 )
 
-parser.add_argument(
+connection.add_argument(
+    "-b",
+    "--mac",
+    metavar="MAC",
+    help="Target device MAC address"
+)
+
+
+# Automation
+
+automation = parser.add_argument_group("Automation")
+
+automation.add_argument(
     "-sc",
     "--script",
-    help="Select a script file to run"
+    metavar="FILE",
+    help="Run a BLETool script (.bts)"
 )
 
-parser.add_argument(
-    "-o",
-    "--output",
-    help="Ouput script results into a file"
+automation.add_argument(
+    "-sg",
+    "--generate-script",
+    metavar="FILE",
+    help="Generate a BLETool script from a Wireshark JSON export"
 )
 
-parser.add_argument(
+automation.add_argument(
     "-v",
     "--verbose",
     action="store_true",
-    help="Verbose logging for scripts"
+    help="Enable verbose script logging"
+)
+
+
+# Analysis
+
+analysis = parser.add_argument_group("Analysis")
+
+analysis.add_argument(
+    "-a",
+    "--analyze",
+    metavar="FILE",
+    help="Analyze a Wireshark JSON export for BLE ATT operations"
+)
+
+analysis.add_argument(
+    "-o",
+    "--output",
+    metavar="FILE",
+    help="Write analysis or generated output to a file"
 )
 
 args = parser.parse_args()
@@ -126,6 +155,15 @@ class Tee:
     @property
     def encoding(self):
         return self.streams[0].encoding
+    
+OPCODES = {
+    "0x12": "Write Request",
+    "0x52": "Write Command",
+    "0x0a": "Read Request",
+    "0x1b": "Notification",
+    "0x1d": "Indication",
+}
+
 
 
 ## Helper Functions
@@ -937,7 +975,7 @@ async def scriptEngine(session, file):
 
                 elif command[0] == "sleep":
                     
-                    await asyncio.sleep(int(command[1]))
+                    await asyncio.sleep(float(command[1]))
                     
                 else:
                     print(f"Error on line {lineNum}")
@@ -949,6 +987,176 @@ async def scriptEngine(session, file):
     if session.connected:
         await disconnect_command(session, [])
 
+def json_analyze(input, silent=False):
+
+    scriptData = []
+
+    with open(input, 'r') as file:
+
+        data = json.load(file)
+
+        unique_handles = set()
+        unique_opcodes = set()
+        counts = Counter()
+
+        for packet in data:
+
+            layers = packet.get("_source", {}).get("layers", {})
+            btatt = layers.get("btatt")
+            btle = layers.get("btle")
+            frame = layers.get("frame")
+
+
+            if not btatt:
+                continue
+
+            if not btle:
+                continue
+
+            mac = btle.get("btle.peripheral_bd_addr")
+            timestamp = frame.get("frame.time_relative")
+            opcode = btatt.get("btatt.opcode")
+            handle = btatt.get("btatt.handle")
+            value = btatt.get("btatt.value") 
+
+            scriptData.append({
+                "timestamp": timestamp,
+                "mac": mac,
+                "opcode": opcode,
+                "operation": OPCODES.get(opcode, "Unknown"),
+                "handle": handle,
+                "value": value if value else None
+            })
+            
+            unique_handles.add(handle)
+            unique_opcodes.add(opcode)
+            mac = btle.get("btle.peripheral_bd_addr")
+
+            if opcode and handle:
+                counts[(opcode, handle)] += 1
+
+
+            if opcode in OPCODES:
+                operation = OPCODES.get(opcode)
+
+                for (opcode, handle), count in counts.items():
+
+                    operation = OPCODES.get(opcode, "Unknown")
+
+
+    handle_types = {
+    "writes": {},
+    "reads": {},
+    "notifications": {},
+    "other": {}
+    }
+
+    for (opcode, handle), count in counts.items():
+
+        operation = OPCODES.get(opcode, "Unknown")
+
+        if opcode == "0x12":
+            handle_types["writes"][handle] = \
+                handle_types["writes"].get(handle, [])
+            handle_types["writes"][handle].append(
+                (opcode, operation, count)
+            )
+
+        elif opcode == "0x0a":
+            handle_types["reads"][handle] = \
+                handle_types["reads"].get(handle, [])
+            handle_types["reads"][handle].append(
+                (opcode, operation, count)
+            )
+
+        elif opcode == "0x1b":
+            handle_types["notifications"][handle] = \
+                handle_types["notifications"].get(handle, [])
+            handle_types["notifications"][handle].append(
+                (opcode, operation, count)
+            )
+
+        else:
+            handle_types["other"][handle] = \
+                handle_types["other"].get(handle, [])
+            handle_types["other"][handle].append(
+                (opcode, operation, count)
+            )
+
+    categories = {
+        "writes": "WRITE HANDLES",
+        "reads": "READ HANDLES",
+        "notifications": "NOTIFICATION HANDLES",
+        "other": "OTHER HANDLES"
+    }
+
+    if silent:
+        return scriptData
+    
+    else:
+        for key, title in categories.items():
+
+            if not handle_types[key]:
+                continue
+
+            print(f"\n{title}")
+            print("-" * 40)
+
+            for handle, ops in handle_types[key].items():
+
+                for opcode, operation, count in ops:
+                    print(
+                        f"Handle: {handle}"
+                        f"    {opcode:6} "
+                        f"{operation:18} "
+                        f"{count} packets"
+                    )
+
+
+
+def scrip_generate(file):
+
+    commands = json_analyze(file, silent=True)
+
+
+    started_notifications = set()
+
+    filename = file.split('.', 1)[0]+".bts"
+
+    print(filename)
+
+    with open(filename, "w") as script:
+
+        script.write("# Generated by bletool\n")
+        script.write(f"# Source: {file}\n\n")
+
+        script.write(f"connect {commands[0]['mac']}\n")
+
+        prev = float(commands[0]["timestamp"])
+
+
+        for opcodes in commands:
+
+            current = float(opcodes["timestamp"])
+
+            cleanVals = str(opcodes['value'])
+            cleanVals = cleanVals.replace(":","")
+
+            if opcodes['opcode'] == '0x12' and opcodes['value'] != None:
+                script.write(f"char-write-req {opcodes['handle']} {cleanVals}\n")
+            elif opcodes['opcode'] == '0x52':
+                script.write(f'char-write-cmd {opcodes['handle']} {cleanVals}\n')
+            elif opcodes['opcode'] == '0x0a':
+                script.write(f'read-char {opcodes['handle']}\n')
+            elif opcodes['opcode'] == '0x1b':
+                if opcodes['handle'] not in started_notifications:
+                    script.write(f"notify {opcodes['handle']} start\n")
+                    started_notifications.add(opcodes['handle'])
+
+            sleep = current - prev
+            script.write(f"sleep {sleep}\n")
+            
+            prev = float(opcodes['timestamp'])
 
 async def help_command(session, parts):
 
@@ -1137,7 +1345,7 @@ def completer(text, state):
 ## Interactive mode
 
 async def interactive():
-    print("bletool v1.2 - BLE Research Utility")
+    print("bletool v1.3 - BLE Research Utility")
     session = Session()
     session.loop = asyncio.get_running_loop()
 
@@ -1253,6 +1461,35 @@ async def main():
             else:
                 await scriptEngine(session, path)
 
+        else:
+            print(f"File not found: {path}")
+
+    elif args.analyze:
+
+        path = args.analyze
+
+        if os.path.isfile(path):
+            print(f"Analyzing: {path}")
+
+            json_analyze(path)
+
+        else:
+            print(f"File not found: {path}")
+
+    elif args.generate:
+
+        path = args.generate
+
+        if os.path.isfile(path):
+            print(f"Generating script...")
+
+            scrip_generate(path)
+
+        else:
+            print(f"File not found: {path}")
+
+
+
     else:
 
         print("Use -h for help")
@@ -1261,3 +1498,4 @@ try:
     asyncio.run(main())
 except KeyboardInterrupt:
     print("Exiting...")
+
