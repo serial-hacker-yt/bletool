@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.3.1
+- Fixes issue with generate argument name being incorrect
+
 ## v1.3
 - Added packet capture analysis for Wireshark JSON exports
 - Added script generation for Wireshark JSON exports
