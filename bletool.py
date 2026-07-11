@@ -68,7 +68,7 @@ automation.add_argument(
 
 automation.add_argument(
     "-sg",
-    "--generate-script",
+    "--generate",
     metavar="FILE",
     help="Generate a BLETool script from a Wireshark JSON export"
 )
