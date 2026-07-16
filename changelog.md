@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.3.2
+- Fixed a crash when stopping notifications after reconnecting to a previously disconnected device
+  
 ## v1.3.1
 - Fixes issue with generate argument name being incorrect
 
