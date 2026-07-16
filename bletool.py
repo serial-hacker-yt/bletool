@@ -311,6 +311,13 @@ def handle_disconnect(session):
     print("[-] Device was disconnected")
     session.connected = False
 
+    handles = list(session.notification_status.keys())
+
+    for handle in handles:
+
+        if session.notification_status[handle] != "Stopped":
+
+            session.notification_status[handle] = "Stopped"
 
 
 
