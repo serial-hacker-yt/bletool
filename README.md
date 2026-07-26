@@ -397,6 +397,52 @@ python3 bletool.py -I -b AA:BB:CC:DD:EE:FF
 
 ### Enumerating Services and Characteristics
 
+The `enum` command provides a formatted overview of the connected device's GATT database, making it easier to understand the device structure during reverse engineering and protocol analysis.
+
+The table includes:
+
+- Service handle ranges
+- Service names and UUIDs
+- Characteristic declaration and value handles
+- Characteristic properties
+- Readable characteristic values (when supported)
+
+Run:
+
+```bash
+enum
+```
+
+Example output:
+
+```text
+Handles         Service / Characteristic                     Properties               Value
+--------------------------------------------------------------------------------------------------------------
+0001 -> 0027    Generic Attribute Profile (1801)
+0002 -> 0003        Service Changed                          INDICATE
+
+0028 -> 002D    Vendor Specific (FFFF)
+0029 -> 002A        FF01                                     WRITE
+002B -> 002C        FF02                                     READ, NOTIFY
+
+002E -> 0033    70D51000-2C7F-4E75-AE8A-D758951CE4E0
+002F -> 0030        70D51001-2C7F-4E75-AE8A-D758951CE4E0      READ, WRITE             11223344
+0031 -> 0032        70D51002-2C7F-4E75-AE8A-D758951CE4E0      READ, NOTIFY            11223344
+
+0034 -> 0040    Vendor Specific (8018)
+0035 -> 0036        8020                                     WRITE, INDICATE
+0038 -> 0039        8021                                     READ, INDICATE
+003B -> 003C        8022                                     WRITE, INDICATE
+003E -> 003F        8023                                     WRITE, INDICATE
+
+0041 -> FFFF    Device Information (180A)
+0042 -> 0043        Model Number String                      READ                    AC Infinity
+0044 -> 0045        Hardware Revision String                 READ                    1.1
+0046 -> 0047        Software Revision String                 READ                    3.2.25
+```
+
+This command provides a concise overview of the device's GATT layout, allowing researchers to quickly identify services, characteristics, supported operations, and readable values without manually querying individual attributes.
+
 List all discovered characteristics:
 
 ```bash
