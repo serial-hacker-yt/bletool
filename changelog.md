@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.4
+- Added `enum` command for Bettercap-style GATT enumeration
+
 ## v1.3.2
 - Fixed a crash when stopping notifications after reconnecting to a previously disconnected device
   
