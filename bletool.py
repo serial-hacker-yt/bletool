@@ -640,6 +640,74 @@ def notify_callback(sender, data, session):
     })
 
 
+async def bleEnum(session,parts):
+
+    if not session.connected:
+        print("[-] Not connected")
+        return
+
+    services = sorted(session.client.services, key=lambda s: s.handle)
+
+    print()
+    print(
+        f"{'Handles':<16}"
+        f"{'Service / Characteristic':<45}"
+        f"{'Properties':<25}"
+        f"{'Value'}"
+    )
+
+    print("-" * 110)
+
+    for index, service in enumerate(services):
+
+
+        if index + 1 < len(services):
+            end_handle = services[index + 1].handle - 1
+        else:
+            end_handle = 0xFFFF
+
+
+        print(
+            f"{f'{service.handle:04X} -> {end_handle:04X}':<16}"
+            f"{service.description} ({service.uuid[4:8]})"
+        )
+
+        chars = sorted(service.characteristics, key=lambda c: c.handle)
+
+        for char in chars:
+
+            value_handle = char.handle + 1
+
+            props = ", ".join(p.upper() for p in char.properties)
+
+            value = ""
+
+            if "read" in char.properties:
+
+                try:
+
+                    data = await session.client.read_gatt_char(char.uuid)
+
+                    try:
+                        value = data.decode(errors="ignore").strip()
+
+                    except:
+                        value = data.hex()
+
+                except:
+                    value = "<error>"
+
+            print(
+                f"{f'{char.handle:04X} -> {value_handle:04X}':<16}"
+                f"{'    ' + char.description:<45}"
+                f"{props:<25}"
+                f"{value}"
+            )
+
+        print()
+
+
+
 ## Commands
 
 async def connect_command(session, parts):
@@ -1165,6 +1233,7 @@ def scrip_generate(file):
             
             prev = float(opcodes['timestamp'])
 
+
 async def help_command(session, parts):
 
     print("""
@@ -1186,6 +1255,11 @@ scan
 
 GATT Enumeration
 ----------------
+enum
+    Display a formatted overview of the GATT database,
+    including services, declaration/value handles,
+    properties, and readable characteristic values
+
 characteristics
     List UUIDs, handles, and properties
 
@@ -1323,7 +1397,8 @@ commands = {
     "dump": dump_info,
     "keep-alive": keepAlive,
     "notify": notify,
-    "notify-display": notify_display_settings
+    "notify-display": notify_display_settings,
+    "enum": bleEnum
 
 }
 
@@ -1352,7 +1427,7 @@ def completer(text, state):
 ## Interactive mode
 
 async def interactive():
-    print("bletool v1.3 - BLE Research Utility")
+    print("bletool v1.4 - BLE Research Utility")
     session = Session()
     session.loop = asyncio.get_running_loop()
 
